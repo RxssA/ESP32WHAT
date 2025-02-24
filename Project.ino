@@ -3,7 +3,7 @@
 #include <Adafruit_MCP9808.h>
 #include <Adafruit_GPS.h>
 #include <WiFi.h>
-
+#include <HTTPClient.h>
 // Wi-Fi Credentials
 const char* SECRET_SSID = "VM8841012";
 const char* SECRET_PASS = "ewPq5o2hiWzknurt";
@@ -25,6 +25,26 @@ int bpmBuffer[bufferSize] = {0}, bpmIndex = 0, totalBpm = 0, avgBpm = 0;
 int highestBpm = 0, lowestBpm = 999;
 unsigned long lastSendTime = 0;
 
+void sendHttpRequestTask(void* pvParameters){
+  String payload = *(String*)pvParameters;
+  delete (String*)pvParameters;
+
+  HTTPClient http;
+  http.begin(serverUrl);
+  http.addHeader("Content-Type", "application");
+  int httpResponse = http.POST(payload);
+  Serial.print("HTTP Response:");
+  Serial.println(httpResponse);
+  http.end();
+
+  vTaskDelete(NULL);
+}
+
+void sendHttpRequestAsync(String payload){
+    String* payloadCopy = new String(payload);
+    xTaskCreatePinnedToCore(sendHttpRequestTask, "HttpTask", 8192, payloadCopy, 1 ,NULL,0);
+}
+
 void setup() {
   Serial.begin(115200);
   Serial1.begin(115200);
@@ -45,7 +65,6 @@ void setup() {
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);
   GPS.sendCommand(PGCMD_ANTENNA);
   Wire.begin(21, 22);
-
   Serial.println("Sensors Initialized");
 }
 
@@ -112,10 +131,8 @@ void loop() {
   float gpsLng = (GPS.longitudeDegrees != 0) ? GPS.longitudeDegrees : -9.062691;
 
   // Ensure sending data every 5 seconds
-  /*if (currentMillis - lastSendTime >= 5000) {
+  if (currentMillis - lastSendTime >= 1000) {
     lastSendTime = currentMillis;
-
-    // Prepare JSON payload
     String payload = "{";
     payload += "\"heartRate\":" + String(avgBpm);
     payload += ",\"averageHeartRate\":" + String(avgBpm);
@@ -126,34 +143,12 @@ void loop() {
     payload += ",\"lng\":" + String(gpsLng, 6) + "}";
     payload += "}";
 
-    //sendHttpRequest(payload);
+    sendHttpRequestAsync(payload);
     Serial.println("Sent: " + payload);
-  }*/
+  }
 
   Serial.print("Heart Rate (BPM): ");
   Serial.println(avgBpm > 0 ? String(avgBpm) : "Calculating...");
 
   delay(20);
-}
-
-void sendHttpRequest(String payload) {
-  WiFiClient client;
-  if (client.connect("192.168.0.23", 4000)) {
-    client.print("POST /data HTTP/1.1\r\n");
-    client.print("Host: 192.168.0.23\r\n");
-    client.print("Content-Type: application/json\r\n");
-    client.print("Content-Length: " + String(payload.length()) + "\r\n");
-    client.print("\r\n");
-    client.print(payload);
-
-    unsigned long startTime = millis();
-    while (client.connected() && millis() - startTime < 2000) {
-      if (client.available()) {
-        Serial.write(client.read()); // Read and print response
-      }
-    }
-    client.stop();
-  } else {
-    Serial.println("Connection failed");
-  }
 }
