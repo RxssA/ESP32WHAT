@@ -7,6 +7,8 @@
 // Wi-Fi Credentials
 const char* SECRET_SSID = "VM8841012";
 const char* SECRET_PASS = "ewPq5o2hiWzknurt";
+//const char* SECRET_SSID = "iPhone";
+//const char* SECRET_PASS = "Rossarmo123";
 const char* serverUrl = "http://192.168.0.23:4000/data";
 
 // Initialize sensors
@@ -25,24 +27,30 @@ int bpmBuffer[bufferSize] = {0}, bpmIndex = 0, totalBpm = 0, avgBpm = 0;
 int highestBpm = 0, lowestBpm = 999;
 unsigned long lastSendTime = 0;
 
-void sendHttpRequestTask(void* pvParameters){
+
+ void sendHttpRequestTask(void* pvParameters) {
   String payload = *(String*)pvParameters;
   delete (String*)pvParameters;
 
+  WiFiClient client;
   HTTPClient http;
-  http.begin(serverUrl);
-  http.addHeader("Content-Type", "application");
-  int httpResponse = http.POST(payload);
-  Serial.print("HTTP Response:");
-  Serial.println(httpResponse);
+  http.begin(client, serverUrl);  // Explicitly use WiFiClient
+  http.addHeader("Content-Type", "application/json");
+  
+  int httpCode = http.POST(payload);
+  if (httpCode <= 0) {
+    Serial.printf("HTTP Error: %s\n", http.errorToString(httpCode).c_str());
+  } else {
+    Serial.printf("HTTP Code: %d\n", httpCode);
+  }
   http.end();
-
   vTaskDelete(NULL);
 }
 
+
 void sendHttpRequestAsync(String payload){
     String* payloadCopy = new String(payload);
-    xTaskCreatePinnedToCore(sendHttpRequestTask, "HttpTask", 8192, payloadCopy, 1 ,NULL,0);
+    xTaskCreatePinnedToCore(sendHttpRequestTask, "HttpTask", 12288, payloadCopy, 1 ,NULL,0);
 }
 
 void setup() {
