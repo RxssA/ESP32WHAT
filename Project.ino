@@ -102,7 +102,7 @@ void loop() {
         bpmBuffer[bpmIndex] = bpm;
         totalBpm += bpmBuffer[bpmIndex];
         bpmIndex = (bpmIndex + 1) % bufferSize;
-        avgBpm = totalBpm / bufferSize;
+        avgBpm = (totalBpm / bufferSize) - 12;
 
         // Update highest and lowest BPM
         if (bpm > highestBpm) highestBpm = bpm;
